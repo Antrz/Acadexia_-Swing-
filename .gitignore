@@ -1,0 +1,34 @@
+# ==============================
+# Acadexia - Java/Maven .gitignore
+# ==============================
+
+# Maven build output
+target/
+*.class
+
+# Sensitive configuration — NEVER commit DB credentials
+src/main/resources/db.properties
+
+# Provide a safe template instead:
+# Copy db.properties.template -> db.properties and fill in your credentials
+# (db.properties.template is safe to commit)
+
+# IDE files
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.class
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Maven wrapper
+!.mvn/wrapper/maven-wrapper.jar

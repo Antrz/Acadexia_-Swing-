@@ -1,0 +1,14 @@
+# Acadexia MySQL Database Configuration Template
+# ------------------------------------------------
+# Copy this file to db.properties and fill in your credentials.
+# db.properties is listed in .gitignore and will NOT be committed.
+
+db.host=localhost
+db.port=3306
+db.name=acadexia_db
+db.user=root
+db.password=YOUR_PASSWORD_HERE
+db.useSSL=false
+db.allowPublicKeyRetrieval=true
+db.serverTimezone=UTC
+db.autoInit=true
