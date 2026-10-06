@@ -3,6 +3,7 @@ package com.acadexia.ui.student;
 import com.acadexia.dao.*;
 import com.acadexia.model.*;
 import com.acadexia.security.SessionManager;
+import com.acadexia.security.SecurityUtils;
 import com.acadexia.ui.auth.LandingFrame;
 import com.acadexia.ui.common.UIComponents;
 import com.acadexia.ui.common.UITheme;
@@ -26,7 +27,10 @@ public class StudentDashboardFrame extends JFrame {
     private final GrievanceDAO grievanceDAO = new GrievanceDAO();
     private final FeedbackDAO feedbackDAO = new FeedbackDAO();
     private final SubjectDAO subjectDAO = new SubjectDAO();
+    private final UserDAO userDAO = new UserDAO();
 
+    private JComboBox<String> cmbSemesterFilter;
+    private JLabel lblMarksSummary;
     private DefaultTableModel marksTableModel;
     private DefaultTableModel attTableModel;
     private DefaultTableModel leaveTableModel;
@@ -67,6 +71,7 @@ public class StudentDashboardFrame extends JFrame {
         tabs.addTab("📁 Assignments", createAssignmentsPanel());
         tabs.addTab("⚖️ Grievance Redressal", createGrievancePanel());
         tabs.addTab("💬 Faculty Feedback", createFeedbackPanel());
+        tabs.addTab("⚙️ Settings", createSettingsPanel());
 
         center.add(tabs, BorderLayout.CENTER);
         add(center, BorderLayout.CENTER);
@@ -130,15 +135,55 @@ public class StudentDashboardFrame extends JFrame {
     }
 
     private JPanel createMarksheetPanel() {
-        JPanel p = new JPanel(new BorderLayout(10, 10));
+        JPanel p = new JPanel(new BorderLayout(12, 12));
         p.setOpaque(false);
         p.setBorder(new EmptyBorder(12, 12, 12, 12));
 
-        String[] cols = {"Subject Code", "Subject Name", "Exam Type", "Marks Obtained", "Max Marks", "Percentage", "Grade", "Grade Point"};
+        // Toolbar for Semester selection
+        JPanel toolBar = new JPanel(new BorderLayout(10, 0));
+        toolBar.setOpaque(false);
+
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        left.setOpaque(false);
+
+        JLabel lblSelectSem = new JLabel("Select Academic Semester:");
+        lblSelectSem.setFont(UITheme.FONT_BOLD);
+        lblSelectSem.setForeground(UITheme.TEXT_PRIMARY);
+
+        String[] sems = {
+                "Semester 1", "Semester 2", "Semester 3", "Semester 4",
+                "Semester 5", "Semester 6", "Semester 7", "Semester 8",
+                "All Semesters"
+        };
+        cmbSemesterFilter = new JComboBox<>(sems);
+        cmbSemesterFilter.setFont(UITheme.FONT_REGULAR);
+
+        int curSem = (currentStudent != null && currentStudent.getSemester() > 0) ? currentStudent.getSemester() : 5;
+        if (curSem >= 1 && curSem <= 8) {
+            cmbSemesterFilter.setSelectedIndex(curSem - 1);
+        }
+
+        cmbSemesterFilter.addActionListener(e -> loadMarks());
+
+        JButton btnLoad = UIComponents.createPrimaryButton("🔍 Load Marksheet");
+        btnLoad.addActionListener(e -> loadMarks());
+
+        left.add(lblSelectSem);
+        left.add(cmbSemesterFilter);
+        left.add(btnLoad);
+
+        lblMarksSummary = new JLabel();
+        lblMarksSummary.setFont(UITheme.FONT_BOLD);
+        lblMarksSummary.setForeground(UITheme.PRIMARY);
+
+        toolBar.add(left, BorderLayout.WEST);
+        toolBar.add(lblMarksSummary, BorderLayout.EAST);
+
+        String[] cols = {"Semester", "Subject Code", "Subject Name", "Exam Type", "Marks Obtained", "Max Marks", "Percentage", "Grade", "Grade Point"};
         marksTableModel = new DefaultTableModel(cols, 0);
         JTable table = UIComponents.createStyledTable(marksTableModel);
 
-        p.add(new JLabel("Consolidated Academic Marksheet & Series Evaluations"), BorderLayout.NORTH);
+        p.add(toolBar, BorderLayout.NORTH);
         p.add(new JScrollPane(table), BorderLayout.CENTER);
         return p;
     }
@@ -146,9 +191,22 @@ public class StudentDashboardFrame extends JFrame {
     private void loadMarks() {
         marksTableModel.setRowCount(0);
         if (currentStudent == null) return;
-        List<Mark> list = markDAO.getMarksForStudent(currentStudent.getId());
+
+        int selectedIdx = cmbSemesterFilter != null ? cmbSemesterFilter.getSelectedIndex() : -1;
+        List<Mark> list;
+        if (selectedIdx >= 0 && selectedIdx <= 7) {
+            int targetSemester = selectedIdx + 1;
+            list = markDAO.getMarksForStudentAndSemester(currentStudent.getId(), targetSemester);
+        } else {
+            list = markDAO.getMarksForStudent(currentStudent.getId());
+        }
+
+        double totalMarksObtained = 0;
+        double totalMaxMarks = 0;
+
         for (Mark m : list) {
             marksTableModel.addRow(new Object[]{
+                    "Sem " + m.getSemester(),
                     m.getSubjectCode(),
                     m.getSubjectName(),
                     m.getExamType().getLabel(),
@@ -158,6 +216,15 @@ public class StudentDashboardFrame extends JFrame {
                     m.getGrade(),
                     m.getGradePoint()
             });
+            totalMarksObtained += m.getMarksObtained();
+            totalMaxMarks += m.getMaxMarks();
+        }
+
+        if (lblMarksSummary != null) {
+            String semText = (selectedIdx >= 0 && selectedIdx <= 7) ? "Semester " + (selectedIdx + 1) : "All Semesters";
+            double avgPct = totalMaxMarks > 0 ? (totalMarksObtained / totalMaxMarks) * 100.0 : 0.0;
+            lblMarksSummary.setText(String.format("%s | Records: %d | Total: %.1f/%.1f (%.1f%%)",
+                    semText, list.size(), totalMarksObtained, totalMaxMarks, avgPct));
         }
     }
 
@@ -275,31 +342,8 @@ public class StudentDashboardFrame extends JFrame {
     }
 
     private JPanel createTimetablePanel() {
-        JPanel p = new JPanel(new BorderLayout(10, 10));
-        p.setOpaque(false);
-        p.setBorder(new EmptyBorder(12, 12, 12, 12));
-
-        String[] cols = {"Day", "Period Slot", "Subject Code", "Subject Name", "Faculty Instructor", "Room"};
-        DefaultTableModel model = new DefaultTableModel(cols, 0);
-
-        if (currentStudent != null) {
-            List<TimetableSlot> slots = timetableDAO.getTimetableForClass(currentStudent.getClassId());
-            for (TimetableSlot s : slots) {
-                model.addRow(new Object[]{
-                        s.getDayOfWeek().getLabel(),
-                        "Period " + s.getPeriodSlot(),
-                        s.getSubjectCode(),
-                        s.getSubjectName(),
-                        s.getFacultyName(),
-                        s.getRoomNumber()
-                });
-            }
-        }
-
-        JTable table = UIComponents.createStyledTable(model);
-        p.add(new JLabel("Class Weekly Timetable Schedule"), BorderLayout.NORTH);
-        p.add(new JScrollPane(table), BorderLayout.CENTER);
-        return p;
+        int classId = currentStudent != null ? currentStudent.getClassId() : 1;
+        return new StudentTimetablePanel(classId);
     }
 
     private JPanel createAssignmentsPanel() {
@@ -500,6 +544,158 @@ public class StudentDashboardFrame extends JFrame {
         p.add(btnSubmit, BorderLayout.SOUTH);
 
         return p;
+    }
+
+    private JPanel createSettingsPanel() {
+        JPanel p = new JPanel(new BorderLayout(16, 16));
+        p.setOpaque(false);
+        p.setBorder(new EmptyBorder(16, 16, 16, 16));
+
+        p.add(UIComponents.createHeader("⚙️ Account & Profile Settings",
+                "View profile details and change your account authentication password."), BorderLayout.NORTH);
+
+        JPanel grid = new JPanel(new GridLayout(1, 2, 20, 20));
+        grid.setOpaque(false);
+
+        // Panel A: Profile Details (Read-Only)
+        JPanel profileCard = UIComponents.createCardPanel();
+        profileCard.setLayout(new BorderLayout(14, 14));
+
+        JLabel lblProfileTitle = new JLabel("👤 Student Information (Read-Only)");
+        lblProfileTitle.setFont(UITheme.FONT_SECTION);
+        lblProfileTitle.setForeground(UITheme.PRIMARY);
+
+        JPanel profileForm = new JPanel(new GridBagLayout());
+        profileForm.setOpaque(false);
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(8, 8, 8, 8);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        User currentUser = SessionManager.getInstance().getCurrentUser();
+
+        String sName = currentStudent != null ? currentStudent.getFullName() : (currentUser != null ? currentUser.getFullName() : "N/A");
+        String sDept = currentStudent != null ? currentStudent.getDepartmentName() : "Computer Science & Engineering";
+        String sUsername = currentUser != null ? currentUser.getUsername() : "N/A";
+
+        JTextField txtName = createReadOnlyTextField(sName);
+        JTextField txtDept = createReadOnlyTextField(sDept);
+        JTextField txtUser = createReadOnlyTextField(sUsername);
+
+        addFormField(profileForm, gbc, 0, "Full Name:", txtName);
+        addFormField(profileForm, gbc, 1, "Department:", txtDept);
+        addFormField(profileForm, gbc, 2, "Username:", txtUser);
+
+        JLabel lblProfileNote = UIComponents.createBadge("🔒 Institutional records (Name, Department, Username) are read-only.",
+                new Color(30, 41, 59), UITheme.TEXT_MUTED);
+
+        profileCard.add(lblProfileTitle, BorderLayout.NORTH);
+        profileCard.add(profileForm, BorderLayout.CENTER);
+        profileCard.add(lblProfileNote, BorderLayout.SOUTH);
+
+        // Panel B: Change Password (Editable)
+        JPanel passwordCard = UIComponents.createCardPanel();
+        passwordCard.setLayout(new BorderLayout(14, 14));
+
+        JLabel lblPassTitle = new JLabel("🔑 Security & Password Change");
+        lblPassTitle.setFont(UITheme.FONT_SECTION);
+        lblPassTitle.setForeground(UITheme.PRIMARY);
+
+        JPanel passForm = new JPanel(new GridBagLayout());
+        passForm.setOpaque(false);
+
+        JPasswordField txtCurrentPass = new JPasswordField();
+        JPasswordField txtNewPass = new JPasswordField();
+        JPasswordField txtConfirmPass = new JPasswordField();
+
+        addFormField(passForm, gbc, 0, "Current Password:", txtCurrentPass);
+        addFormField(passForm, gbc, 1, "New Password:", txtNewPass);
+        addFormField(passForm, gbc, 2, "Confirm Password:", txtConfirmPass);
+
+        JButton btnChangePass = UIComponents.createPrimaryButton("💾 Save New Password");
+        btnChangePass.addActionListener(e -> {
+            String currentPass = new String(txtCurrentPass.getPassword());
+            String newPass = new String(txtNewPass.getPassword());
+            String confirmPass = new String(txtConfirmPass.getPassword());
+
+            if (currentPass.isEmpty() || newPass.isEmpty() || confirmPass.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please fill in all password fields.", "Input Error", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            User activeUser = SessionManager.getInstance().getCurrentUser();
+            if (activeUser == null) {
+                JOptionPane.showMessageDialog(this, "Session error. User not logged in.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            if (!SecurityUtils.checkPassword(currentPass, activeUser.getPasswordHash())) {
+                JOptionPane.showMessageDialog(this, "Current password is incorrect.", "Authentication Failed", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            if (!newPass.equals(confirmPass)) {
+                JOptionPane.showMessageDialog(this, "New password and confirm password do not match.", "Password Mismatch", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            if (newPass.length() < 4) {
+                JOptionPane.showMessageDialog(this, "New password must be at least 4 characters long.", "Weak Password", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            boolean updated = userDAO.updatePassword(activeUser.getId(), newPass);
+            if (updated) {
+                activeUser.setPasswordHash(SecurityUtils.hashPassword(newPass));
+                AuditLogDAO.log(activeUser.getId(), activeUser.getUsername(), activeUser.getRole().name(),
+                        "PASSWORD_CHANGE", "AUTH", String.valueOf(activeUser.getId()),
+                        "Student updated account password successfully.", AuditLog.Severity.INFO);
+
+                txtCurrentPass.setText("");
+                txtNewPass.setText("");
+                txtConfirmPass.setText("");
+                JOptionPane.showMessageDialog(this, "Password updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(this, "Failed to update password. Please try again.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        passwordCard.add(lblPassTitle, BorderLayout.NORTH);
+        passwordCard.add(passForm, BorderLayout.CENTER);
+        passwordCard.add(btnChangePass, BorderLayout.SOUTH);
+
+        grid.add(profileCard);
+        grid.add(passwordCard);
+
+        p.add(grid, BorderLayout.CENTER);
+        return p;
+    }
+
+    private JTextField createReadOnlyTextField(String value) {
+        JTextField tf = new JTextField(value);
+        tf.setEditable(false);
+        tf.setFocusable(false);
+        tf.setFont(UITheme.FONT_BOLD);
+        tf.setBackground(new Color(25, 25, 38));
+        tf.setForeground(UITheme.TEXT_MUTED);
+        tf.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(50, 50, 70), 1),
+                BorderFactory.createEmptyBorder(6, 10, 6, 10)
+        ));
+        return tf;
+    }
+
+    private void addFormField(JPanel panel, GridBagConstraints gbc, int row, String labelText, JComponent field) {
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.weightx = 0.3;
+        JLabel label = new JLabel(labelText);
+        label.setFont(UITheme.FONT_BOLD);
+        label.setForeground(UITheme.TEXT_PRIMARY);
+        panel.add(label, gbc);
+
+        gbc.gridx = 1;
+        gbc.weightx = 0.7;
+        panel.add(field, gbc);
     }
 
     private void loadAllData() {

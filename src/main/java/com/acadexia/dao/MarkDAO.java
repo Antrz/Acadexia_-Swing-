@@ -38,42 +38,74 @@ public class MarkDAO {
     public List<Mark> getMarksForStudent(int studentId) {
         List<Mark> list = new ArrayList<>();
         String sql = """
-            SELECT m.*, s.code AS subject_code, s.name AS subject_name,
+            SELECT m.*, s.code AS subject_code, s.name AS subject_name, s.semester AS semester,
                    stu.register_number, stu.roll_number, u.full_name AS student_name
             FROM marks m
             JOIN subjects s ON m.subject_id = s.id
             JOIN students stu ON m.student_id = stu.id
             JOIN users u ON stu.user_id = u.id
             WHERE m.student_id = ?
-            ORDER BY s.code, m.exam_type
+            ORDER BY s.semester, s.code, m.exam_type
             """;
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, studentId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    Mark m = new Mark();
-                    m.setId(rs.getInt("id"));
-                    m.setStudentId(rs.getInt("student_id"));
-                    m.setStudentName(rs.getString("student_name"));
-                    m.setRegisterNumber(rs.getString("register_number"));
-                    m.setRollNumber(rs.getString("roll_number"));
-                    m.setSubjectId(rs.getInt("subject_id"));
-                    m.setSubjectCode(rs.getString("subject_code"));
-                    m.setSubjectName(rs.getString("subject_name"));
-                    m.setExamType(Mark.ExamType.valueOf(rs.getString("exam_type")));
-                    m.setMarksObtained(rs.getDouble("marks_obtained"));
-                    m.setMaxMarks(rs.getDouble("max_marks"));
-                    m.setExamDate(rs.getDate("exam_date"));
-                    m.setRecordedByFacultyId(rs.getInt("recorded_by_faculty_id"));
-                    m.setCreatedAt(rs.getTimestamp("created_at"));
-                    list.add(m);
+                    list.add(mapResultSetToMark(rs));
                 }
             }
         } catch (SQLException e) {
             System.err.println("Error fetching marks for student: " + e.getMessage());
         }
         return list;
+    }
+
+    public List<Mark> getMarksForStudentAndSemester(int studentId, int semester) {
+        List<Mark> list = new ArrayList<>();
+        String sql = """
+            SELECT m.*, s.code AS subject_code, s.name AS subject_name, s.semester AS semester,
+                   stu.register_number, stu.roll_number, u.full_name AS student_name
+            FROM marks m
+            JOIN subjects s ON m.subject_id = s.id
+            JOIN students stu ON m.student_id = stu.id
+            JOIN users u ON stu.user_id = u.id
+            WHERE m.student_id = ? AND s.semester = ?
+            ORDER BY s.code, m.exam_type
+            """;
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, studentId);
+            ps.setInt(2, semester);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(mapResultSetToMark(rs));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Error fetching marks for student and semester: " + e.getMessage());
+        }
+        return list;
+    }
+
+    private Mark mapResultSetToMark(ResultSet rs) throws SQLException {
+        Mark m = new Mark();
+        m.setId(rs.getInt("id"));
+        m.setStudentId(rs.getInt("student_id"));
+        m.setStudentName(rs.getString("student_name"));
+        m.setRegisterNumber(rs.getString("register_number"));
+        m.setRollNumber(rs.getString("roll_number"));
+        m.setSubjectId(rs.getInt("subject_id"));
+        m.setSubjectCode(rs.getString("subject_code"));
+        m.setSubjectName(rs.getString("subject_name"));
+        m.setSemester(rs.getInt("semester"));
+        m.setExamType(Mark.ExamType.valueOf(rs.getString("exam_type")));
+        m.setMarksObtained(rs.getDouble("marks_obtained"));
+        m.setMaxMarks(rs.getDouble("max_marks"));
+        m.setExamDate(rs.getDate("exam_date"));
+        m.setRecordedByFacultyId(rs.getInt("recorded_by_faculty_id"));
+        m.setCreatedAt(rs.getTimestamp("created_at"));
+        return m;
     }
 
     public List<StudentMarksEntryRow> getClassSubjectMarks(int classId, int subjectId, Mark.ExamType examType) {

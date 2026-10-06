@@ -24,6 +24,7 @@ public class Mark {
     private int subjectId;
     private String subjectCode;
     private String subjectName;
+    private int semester;
     private ExamType examType;
     private double marksObtained;
     private double maxMarks;
@@ -56,6 +57,9 @@ public class Mark {
 
     public String getSubjectName() { return subjectName; }
     public void setSubjectName(String subjectName) { this.subjectName = subjectName; }
+
+    public int getSemester() { return semester; }
+    public void setSemester(int semester) { this.semester = semester; }
 
     public ExamType getExamType() { return examType; }
     public void setExamType(ExamType examType) { this.examType = examType; }

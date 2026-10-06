@@ -172,7 +172,9 @@ public final class DatabaseSeeder {
             createStudentHelper(conn, userDAO, "ananya.sen", "Ananya Sen", "REG2024CS002", "02", classId, 2022, "Mrs. R. Sen", "9811122234");
             createStudentHelper(conn, userDAO, "kevin.paul", "Kevin Paul", "REG2024CS003", "03", classId, 2022, "Mr. J. Paul", "9811122235");
 
-            // 10. Create Subjects
+            // 10. Create Subjects (Semester 4 and Semester 5)
+            int subSem4_1 = createSubjectHelper(conn, "CS401", "Data Structures & Algorithms", cseDeptId, 4, 4);
+            int subSem4_2 = createSubjectHelper(conn, "MA201", "Linear Algebra & Complex Analysis", mathDeptId, 4, 4);
             int sub1Id = createSubjectHelper(conn, "CS501", "Design & Analysis of Algorithms", cseDeptId, 5, 4);
             int sub2Id = createSubjectHelper(conn, "CS502", "Database Management Systems", cseDeptId, 5, 4);
             int sub3Id = createSubjectHelper(conn, "MA301", "Discrete Mathematical Structures", mathDeptId, 5, 4); // Math Dept!
@@ -184,19 +186,11 @@ public final class DatabaseSeeder {
             assignTeacherHelper(conn, sub3Id, fac2Id, classId, "2024-2025"); // Discrete Math taught by Math HOD!
             assignTeacherHelper(conn, sub4Id, fac4Id, classId, "2024-2025"); // OS taught by Subject Faculty
 
-            // 12. Seed Timetable for S5 CSE A
-            seedTimetable(conn, classId, fac1Id, sub1Id, "MONDAY", 1, "LH-301");
-            seedTimetable(conn, classId, fac2Id, sub3Id, "MONDAY", 2, "LH-301");
-            seedTimetable(conn, classId, fac3Id, sub2Id, "MONDAY", 3, "LH-301");
-            seedTimetable(conn, classId, fac4Id, sub4Id, "MONDAY", 4, "LH-301");
-
-            seedTimetable(conn, classId, fac3Id, sub2Id, "TUESDAY", 1, "LH-301");
-            seedTimetable(conn, classId, fac1Id, sub1Id, "TUESDAY", 2, "LH-301");
-            seedTimetable(conn, classId, fac4Id, sub4Id, "TUESDAY", 3, "LH-301");
-            seedTimetable(conn, classId, fac2Id, sub3Id, "TUESDAY", 4, "LH-301");
+            // 12. Seed 7-Period Timetable for S5 CSE A (Monday to Friday)
+            seedFullClassTimetable(conn, classId, fac1Id, fac2Id, fac3Id, fac4Id, sub1Id, sub2Id, sub3Id, sub4Id);
 
             // 13. Seed Starter Marks & Attendance
-            seedInitialMarksAndAttendance(conn, classId, fac1Id, sub1Id, sub2Id, sub3Id, sub4Id);
+            seedInitialMarksAndAttendance(conn, classId, fac1Id, subSem4_1, subSem4_2, sub1Id, sub2Id, sub3Id, sub4Id);
 
             // 14. Seed Sample Duty Leave Application (at Tier 1 awaiting CFA recommendation)
             seedSampleDutyLeave(conn, 1);
@@ -268,7 +262,11 @@ public final class DatabaseSeeder {
     }
 
     private static void seedTimetable(Connection conn, int classId, int facultyId, int subjectId, String day, int period, String room) throws SQLException {
-        String sql = "INSERT INTO timetable (class_id, faculty_id, subject_id, day_of_week, period_slot, room_number) VALUES (?, ?, ?, ?, ?, ?)";
+        String sql = """
+            INSERT INTO timetable (class_id, faculty_id, subject_id, day_of_week, period_slot, room_number) 
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE faculty_id = VALUES(faculty_id), subject_id = VALUES(subject_id), room_number = VALUES(room_number)
+            """;
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, classId);
             ps.setInt(2, facultyId);
@@ -280,7 +278,55 @@ public final class DatabaseSeeder {
         }
     }
 
-    private static void seedInitialMarksAndAttendance(Connection conn, int classId, int fac1Id, int s1, int s2, int s3, int s4) {
+    private static void seedFullClassTimetable(Connection conn, int classId, int fac1, int fac2, int fac3, int fac4,
+                                               int sub1, int sub2, int sub3, int sub4) throws SQLException {
+        // Monday (7 periods)
+        seedTimetable(conn, classId, fac1, sub1, "MONDAY", 1, "LH-301");
+        seedTimetable(conn, classId, fac2, sub3, "MONDAY", 2, "LH-301");
+        seedTimetable(conn, classId, fac3, sub2, "MONDAY", 3, "LH-301");
+        seedTimetable(conn, classId, fac4, sub4, "MONDAY", 4, "LH-301");
+        seedTimetable(conn, classId, fac1, sub1, "MONDAY", 5, "LAB-1");
+        seedTimetable(conn, classId, fac3, sub2, "MONDAY", 6, "LAB-1");
+        seedTimetable(conn, classId, fac4, sub4, "MONDAY", 7, "LH-301");
+
+        // Tuesday (7 periods)
+        seedTimetable(conn, classId, fac3, sub2, "TUESDAY", 1, "LH-301");
+        seedTimetable(conn, classId, fac1, sub1, "TUESDAY", 2, "LH-301");
+        seedTimetable(conn, classId, fac4, sub4, "TUESDAY", 3, "LH-301");
+        seedTimetable(conn, classId, fac2, sub3, "TUESDAY", 4, "LH-301");
+        seedTimetable(conn, classId, fac3, sub2, "TUESDAY", 5, "LH-301");
+        seedTimetable(conn, classId, fac2, sub3, "TUESDAY", 6, "LH-301");
+        seedTimetable(conn, classId, fac1, sub1, "TUESDAY", 7, "LH-301");
+
+        // Wednesday (7 periods)
+        seedTimetable(conn, classId, fac2, sub3, "WEDNESDAY", 1, "LH-301");
+        seedTimetable(conn, classId, fac4, sub4, "WEDNESDAY", 2, "LH-301");
+        seedTimetable(conn, classId, fac1, sub1, "WEDNESDAY", 3, "LH-301");
+        seedTimetable(conn, classId, fac3, sub2, "WEDNESDAY", 4, "LH-301");
+        seedTimetable(conn, classId, fac4, sub4, "WEDNESDAY", 5, "LAB-2");
+        seedTimetable(conn, classId, fac1, sub1, "WEDNESDAY", 6, "LAB-2");
+        seedTimetable(conn, classId, fac2, sub3, "WEDNESDAY", 7, "LH-301");
+
+        // Thursday (7 periods)
+        seedTimetable(conn, classId, fac4, sub4, "THURSDAY", 1, "LH-301");
+        seedTimetable(conn, classId, fac3, sub2, "THURSDAY", 2, "LH-301");
+        seedTimetable(conn, classId, fac2, sub3, "THURSDAY", 3, "LH-301");
+        seedTimetable(conn, classId, fac1, sub1, "THURSDAY", 4, "LH-301");
+        seedTimetable(conn, classId, fac2, sub3, "THURSDAY", 5, "LH-301");
+        seedTimetable(conn, classId, fac4, sub4, "THURSDAY", 6, "LH-301");
+        seedTimetable(conn, classId, fac3, sub2, "THURSDAY", 7, "LH-301");
+
+        // Friday (7 periods)
+        seedTimetable(conn, classId, fac1, sub1, "FRIDAY", 1, "LH-301");
+        seedTimetable(conn, classId, fac2, sub3, "FRIDAY", 2, "LH-301");
+        seedTimetable(conn, classId, fac3, sub2, "FRIDAY", 3, "LH-301");
+        seedTimetable(conn, classId, fac4, sub4, "FRIDAY", 4, "LH-301");
+        seedTimetable(conn, classId, fac1, sub1, "FRIDAY", 5, "LH-301");
+        seedTimetable(conn, classId, fac3, sub2, "FRIDAY", 6, "LH-301");
+        seedTimetable(conn, classId, fac2, sub3, "FRIDAY", 7, "LH-301");
+    }
+
+    private static void seedInitialMarksAndAttendance(Connection conn, int classId, int fac1Id, int subSem4_1, int subSem4_2, int s1, int s2, int s3, int s4) {
         try {
             // Attendance for past 5 days
             String[] dates = {"2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02"};
@@ -306,7 +352,13 @@ public final class DatabaseSeeder {
             // Series 1 Marks
             String markSql = "INSERT IGNORE INTO marks (student_id, subject_id, exam_type, marks_obtained, max_marks, exam_date, recorded_by_faculty_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
             try (PreparedStatement ps = conn.prepareStatement(markSql)) {
-                // Rohan
+                // Rohan - Sem 4
+                ps.setInt(1, 1); ps.setInt(2, subSem4_1); ps.setString(3, "INTERNAL"); ps.setDouble(4, 45.0); ps.setDouble(5, 50.0); ps.setDate(6, Date.valueOf("2026-05-15")); ps.setInt(7, fac1Id); ps.addBatch();
+                ps.setInt(1, 1); ps.setInt(2, subSem4_2); ps.setString(3, "INTERNAL"); ps.setDouble(4, 48.0); ps.setDouble(5, 50.0); ps.setDate(6, Date.valueOf("2026-05-15")); ps.setInt(7, fac1Id); ps.addBatch();
+                ps.setInt(1, 1); ps.setInt(2, subSem4_1); ps.setString(3, "SEMESTER_EXAM"); ps.setDouble(4, 88.0); ps.setDouble(5, 100.0); ps.setDate(6, Date.valueOf("2026-06-10")); ps.setInt(7, fac1Id); ps.addBatch();
+                ps.setInt(1, 1); ps.setInt(2, subSem4_2); ps.setString(3, "SEMESTER_EXAM"); ps.setDouble(4, 92.0); ps.setDouble(5, 100.0); ps.setDate(6, Date.valueOf("2026-06-12")); ps.setInt(7, fac1Id); ps.addBatch();
+
+                // Rohan - Sem 5
                 ps.setInt(1, 1); ps.setInt(2, s1); ps.setString(3, "SERIES_1"); ps.setDouble(4, 46.5); ps.setDouble(5, 50.0); ps.setDate(6, Date.valueOf("2026-09-20")); ps.setInt(7, fac1Id); ps.addBatch();
                 ps.setInt(1, 1); ps.setInt(2, s2); ps.setString(3, "SERIES_1"); ps.setDouble(4, 44.0); ps.setDouble(5, 50.0); ps.setDate(6, Date.valueOf("2026-09-21")); ps.setInt(7, fac1Id); ps.addBatch();
                 ps.setInt(1, 1); ps.setInt(2, s3); ps.setString(3, "SERIES_1"); ps.setDouble(4, 48.0); ps.setDouble(5, 50.0); ps.setDate(6, Date.valueOf("2026-09-22")); ps.setInt(7, fac1Id); ps.addBatch();
